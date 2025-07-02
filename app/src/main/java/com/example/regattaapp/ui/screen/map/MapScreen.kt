@@ -27,15 +27,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.regattaapp.R
 import com.example.regattaapp.viewmodel.RoomViewModel
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.*
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import com.example.regattaapp.data.RegattaPoint
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,10 +50,11 @@ fun MapScreen(roomId: String, navController: NavController) {
     val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
     var location by remember { mutableStateOf<Location?>(null) }
     var mapView by remember { mutableStateOf<MapView?>(null) }
+    val markerMap = remember { mutableStateMapOf<String, Marker>() }
 
     LaunchedEffect(Unit) {
         Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", Context.MODE_PRIVATE))
-        getLastLocation(context, fusedLocationClient) { loc -> location = loc }
+        location = getAccurateLocation(context, fusedLocationClient)
         viewModel.joinRoom(roomId)
     }
 
@@ -62,8 +64,8 @@ fun MapScreen(roomId: String, navController: NavController) {
         val points = room?.coursePoints ?: return@LaunchedEffect
 
         map.overlays.clear()
+        markerMap.clear()
 
-        // Twoja pozycja
         val userGeo = GeoPoint(loc.latitude, loc.longitude)
         map.controller.setCenter(userGeo)
 
@@ -74,7 +76,6 @@ fun MapScreen(roomId: String, navController: NavController) {
         }
         map.overlays.add(userMarker)
 
-        // Znaczniki punktów regatowych
         for (point in points) {
             val geo = GeoPoint(point.latitude, point.longitude)
             val marker = Marker(map).apply {
@@ -90,8 +91,12 @@ fun MapScreen(roomId: String, navController: NavController) {
                     "4" -> getScaledIcon(context, map, R.drawable.buoy_4, 10.0)
                     else -> getScaledIcon(context, map, R.drawable.buoy_default, 10.0)
                 }
+                if (room?.createdBy == currentUserId) {
+                    setDraggable(true)
+                }
             }
             map.overlays.add(marker)
+            markerMap[point.name] = marker
         }
 
         map.invalidate()
@@ -116,21 +121,19 @@ fun MapScreen(roomId: String, navController: NavController) {
                 },
                 actions = {
                     if (room?.createdBy == currentUserId) {
-                        IconButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    val success = viewModel.deleteCurrentRoom()
-                                    if (success) {
-                                        Toast.makeText(context, "Pokój usunięty", Toast.LENGTH_SHORT).show()
-                                        navController.navigate("home") {
-                                            popUpTo("map/$roomId") { inclusive = true }
-                                        }
-                                    } else {
-                                        Toast.makeText(context, "Błąd przy usuwaniu pokoju", Toast.LENGTH_SHORT).show()
+                        IconButton(onClick = {
+                            coroutineScope.launch {
+                                val success = viewModel.deleteCurrentRoom()
+                                if (success) {
+                                    Toast.makeText(context, "Pokój usunięty", Toast.LENGTH_SHORT).show()
+                                    navController.navigate("home") {
+                                        popUpTo("map/$roomId") { inclusive = true }
                                     }
+                                } else {
+                                    Toast.makeText(context, "Błąd przy usuwaniu pokoju", Toast.LENGTH_SHORT).show()
                                 }
                             }
-                        ) {
+                        }) {
                             Box(
                                 modifier = Modifier
                                     .size(24.dp)
@@ -145,51 +148,82 @@ fun MapScreen(roomId: String, navController: NavController) {
             )
         }
     ) { paddingValues ->
-        if (location != null) {
-            AndroidView(
-                factory = { ctx ->
-                    MapView(ctx).apply {
-                        setTileSource(TileSourceFactory.MAPNIK)
-                        setMultiTouchControls(true)
-                        controller.setZoom(15.0)
-                        mapView = this
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            if (location != null) {
+                AndroidView(
+                    factory = { ctx ->
+                        MapView(ctx).apply {
+                            setTileSource(TileSourceFactory.MAPNIK)
+                            setMultiTouchControls(true)
+                            controller.setZoom(15.0)
+                            mapView = this
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            }
+
+            if (room?.createdBy == currentUserId) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(onClick = {
+                        coroutineScope.launch {
+                            location?.let {
+                                viewModel.resetCourse(it) {
+                                    Toast.makeText(context, "Zresetowano trasę", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }) {
+                        Text("Reset")
                     }
-                },
-                modifier = Modifier
-                    .padding(paddingValues)
-                    .fillMaxSize()
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .padding(paddingValues)
-                    .fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
+
+                    Button(onClick = {
+                        coroutineScope.launch {
+                            val updatedPoints = markerMap.map { (name, marker) ->
+                                RegattaPoint(name, marker.position.latitude, marker.position.longitude)
+                            }
+                            viewModel.updateCourseFromMap(updatedPoints) {
+                                Toast.makeText(context, "Zaktualizowano pozycje", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }) {
+                        Text("Update")
+                    }
+                }
             }
         }
     }
 }
 
 @SuppressLint("MissingPermission")
-fun getLastLocation(
+suspend fun getAccurateLocation(
     context: Context,
-    fusedLocationClient: FusedLocationProviderClient,
-    onLocationReady: (Location?) -> Unit
-) {
+    fusedLocationClient: FusedLocationProviderClient
+): Location? {
     if (
         ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
         ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
     ) {
-        onLocationReady(null)
-        return
+        return null
     }
 
-    fusedLocationClient.lastLocation
-        .addOnSuccessListener { location: Location? ->
-            onLocationReady(location)
-        }
+    val request = CurrentLocationRequest.Builder()
+        .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+        .setMaxUpdateAgeMillis(0)
+        .build()
+
+    return fusedLocationClient.getCurrentLocation(request, null).await()
 }
 
 fun metersToPixels(mapView: MapView, meters: Double): Float {
