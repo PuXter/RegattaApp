@@ -168,4 +168,15 @@ class RoomRepository(
                 callback(room)
             }
     }
+
+    suspend fun updateCoursePoint(roomId: String, pointName: String, lat: Double, lng: Double) {
+        val docRef = Firebase.firestore.collection("rooms").document(roomId)
+        val snapshot = docRef.get().await()
+        val data = snapshot.toObject(RegattaRoom::class.java) ?: return
+        val updatedPoints = data.coursePoints.map {
+            if (it.name == pointName) it.copy(latitude = lat, longitude = lng) else it
+        }
+        docRef.update("coursePoints", updatedPoints).await()
+        Log.d("RoomRepository", "Zaktualizowano pozycję $pointName na ($lat, $lng)")
+    }
 }
