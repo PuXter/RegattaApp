@@ -95,6 +95,7 @@ fun MapScreen(roomId: String, navController: NavController) {
                 if (room?.createdBy == currentUserId) {
                     setDraggable(true)
                     setOnMarkerDragListener(object : Marker.OnMarkerDragListener {
+                        override fun onMarkerDragStart(marker: Marker?) {}
                         override fun onMarkerDrag(marker: Marker?) {}
                         override fun onMarkerDragEnd(marker: Marker?) {
                             if (marker != null) {
@@ -108,8 +109,6 @@ fun MapScreen(roomId: String, navController: NavController) {
                                 Toast.makeText(context, "$name przesunięty", Toast.LENGTH_SHORT).show()
                             }
                         }
-
-                        override fun onMarkerDragStart(marker: Marker?) {}
                     })
                 }
             }
@@ -135,6 +134,34 @@ fun MapScreen(roomId: String, navController: NavController) {
                             contentDescription = "Wróć",
                             tint = Color.White
                         )
+                    }
+                },
+                actions = {
+                    if (room?.createdBy == currentUserId) {
+                        IconButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    val success = viewModel.deleteCurrentRoom()
+                                    if (success) {
+                                        Toast.makeText(context, "Pokój został usunięty", Toast.LENGTH_SHORT).show()
+                                        navController.navigate("home") {
+                                            popUpTo("map/$roomId") { inclusive = true }
+                                        }
+                                    } else {
+                                        Toast.makeText(context, "Błąd przy usuwaniu pokoju", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .background(Color.Red, shape = MaterialTheme.shapes.extraSmall),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("X", color = Color.Black, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                     }
                 }
             )
@@ -173,19 +200,6 @@ fun MapScreen(roomId: String, navController: NavController) {
                         }
                     }) {
                         Text("Reset")
-                    }
-
-                    Button(onClick = {
-                        coroutineScope.launch {
-                            val updatedPoints = markerMap.map { (name, marker) ->
-                                RegattaPoint(name, marker.position.latitude, marker.position.longitude)
-                            }
-                            viewModel.updateCourseFromMap(updatedPoints) {
-                                Toast.makeText(context, "Zaktualizowano pozycje", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }) {
-                        Text("Update")
                     }
                 }
             }
