@@ -42,6 +42,12 @@ import com.example.regattaapp.viewmodel.RoomViewModel
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import com.google.android.gms.location.CurrentLocationRequest
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.Priority
+import kotlinx.coroutines.tasks.await
+import android.annotation.SuppressLint
+import android.content.Context
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -206,7 +212,8 @@ fun CreateRoomScreen(navController: NavController, viewModel: RoomViewModel = vi
                             return@launch
                         }
 
-                        val location: Location? = fusedLocationClient.lastLocation.await()
+                        val location: Location? = getAccurateLocation(context, fusedLocationClient)
+
                         val roomId = viewModel.createRoom(
                             regattaName = regattaName,
                             windDirection = wind,
@@ -238,10 +245,10 @@ fun CreateRoomScreen(navController: NavController, viewModel: RoomViewModel = vi
                             val rcMidLng = (rcLng + startBuoyLng) / 2
 
                             val buoy1LatLng = computeOffset(rcMidLat, rcMidLng, buoyDist.toDouble(), wind.toDouble())
-                            val buoy2LatLng = computeOffset(buoy1LatLng.first, buoy1LatLng.second, buoyDist * 1.5, ((wind - 120 + 360) % 360).toDouble())
-                            val buoy3LatLng = computeOffset(buoy2LatLng.first, buoy2LatLng.second, buoyDist * 1.5, ((wind + 120) % 360).toDouble())
 
                             val points = if (selectedCourseType == "trójkąt") {
+                                val buoy2LatLng = computeOffset(buoy1LatLng.first, buoy1LatLng.second, buoyDist * 1.5, ((wind - 120 + 360) % 360).toDouble())
+                                val buoy3LatLng = computeOffset(buoy2LatLng.first, buoy2LatLng.second, buoyDist * 1.5, ((wind + 120) % 360).toDouble())
                                 listOf(
                                     RegattaPoint("RC", rcLat, rcLng),
                                     RegattaPoint("Start", startBuoyLat, startBuoyLng),
@@ -280,4 +287,24 @@ fun CreateRoomScreen(navController: NavController, viewModel: RoomViewModel = vi
             }
         }
     }
+}
+
+@SuppressLint("MissingPermission")
+suspend fun getAccurateLocation(
+    context: Context,
+    fusedLocationClient: FusedLocationProviderClient
+): Location? {
+    if (
+        ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+        ActivityCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+    ) {
+        return null
+    }
+
+    val request = CurrentLocationRequest.Builder()
+        .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+        .setMaxUpdateAgeMillis(0) // zawsze świeża lokalizacja
+        .build()
+
+    return fusedLocationClient.getCurrentLocation(request, null).await()
 }
