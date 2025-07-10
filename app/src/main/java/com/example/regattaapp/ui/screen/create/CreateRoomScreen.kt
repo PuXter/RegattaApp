@@ -245,10 +245,10 @@ fun CreateRoomScreen(navController: NavController, viewModel: RoomViewModel = vi
                             val rcMidLng = (rcLng + startBuoyLng) / 2
 
                             val buoy1LatLng = computeOffset(rcMidLat, rcMidLng, buoyDist.toDouble(), wind.toDouble())
-                            val buoy2LatLng = computeOffset(buoy1LatLng.first, buoy1LatLng.second, buoyDist * 1.5, ((wind - 120 + 360) % 360).toDouble())
-                            val buoy3LatLng = computeOffset(buoy2LatLng.first, buoy2LatLng.second, buoyDist * 1.5, ((wind + 120) % 360).toDouble())
 
                             val points = if (selectedCourseType == "trójkąt") {
+                                val buoy2LatLng = computeOffset(buoy1LatLng.first, buoy1LatLng.second, buoyDist * 1.5, ((wind - 120 + 360) % 360).toDouble())
+                                val buoy3LatLng = computeOffset(buoy2LatLng.first, buoy2LatLng.second, buoyDist * 1.5, ((wind + 120) % 360).toDouble())
                                 listOf(
                                     RegattaPoint("RC", rcLat, rcLng),
                                     RegattaPoint("Start", startBuoyLat, startBuoyLng),

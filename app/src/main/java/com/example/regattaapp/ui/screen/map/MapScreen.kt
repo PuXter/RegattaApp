@@ -26,6 +26,7 @@ import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.regattaapp.R
+import com.example.regattaapp.data.RegattaPoint
 import com.example.regattaapp.viewmodel.RoomViewModel
 import com.google.android.gms.location.*
 import com.google.firebase.auth.FirebaseAuth
@@ -36,7 +37,6 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import com.example.regattaapp.data.RegattaPoint
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,7 +58,7 @@ fun MapScreen(roomId: String, navController: NavController) {
         viewModel.joinRoom(roomId)
     }
 
-    LaunchedEffect(location, mapView, room?.coursePoints) {
+    LaunchedEffect(location, room?.coursePoints) {
         val map = mapView ?: return@LaunchedEffect
         val loc = location ?: return@LaunchedEffect
         val points = room?.coursePoints ?: return@LaunchedEffect
@@ -91,8 +91,26 @@ fun MapScreen(roomId: String, navController: NavController) {
                     "4" -> getScaledIcon(context, map, R.drawable.buoy_4, 10.0)
                     else -> getScaledIcon(context, map, R.drawable.buoy_default, 10.0)
                 }
+
                 if (room?.createdBy == currentUserId) {
                     setDraggable(true)
+                    setOnMarkerDragListener(object : Marker.OnMarkerDragListener {
+                        override fun onMarkerDrag(marker: Marker?) {}
+                        override fun onMarkerDragEnd(marker: Marker?) {
+                            if (marker != null) {
+                                val name = marker.title
+                                viewModel.updateSingleMarkerPosition(
+                                    roomId = roomId,
+                                    pointName = name,
+                                    newLat = marker.position.latitude,
+                                    newLng = marker.position.longitude
+                                )
+                                Toast.makeText(context, "$name przesunięty", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+
+                        override fun onMarkerDragStart(marker: Marker?) {}
+                    })
                 }
             }
             map.overlays.add(marker)
@@ -118,56 +136,25 @@ fun MapScreen(roomId: String, navController: NavController) {
                             tint = Color.White
                         )
                     }
-                },
-                actions = {
-                    if (room?.createdBy == currentUserId) {
-                        IconButton(onClick = {
-                            coroutineScope.launch {
-                                val success = viewModel.deleteCurrentRoom()
-                                if (success) {
-                                    Toast.makeText(context, "Pokój usunięty", Toast.LENGTH_SHORT).show()
-                                    navController.navigate("home") {
-                                        popUpTo("map/$roomId") { inclusive = true }
-                                    }
-                                } else {
-                                    Toast.makeText(context, "Błąd przy usuwaniu pokoju", Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .background(Color.Red, shape = MaterialTheme.shapes.extraSmall),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("X", color = Color.Black, style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
                 }
             )
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            if (location != null) {
-                AndroidView(
-                    factory = { ctx ->
-                        MapView(ctx).apply {
-                            setTileSource(TileSourceFactory.MAPNIK)
-                            setMultiTouchControls(true)
-                            controller.setZoom(15.0)
-                            mapView = this
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            }
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)) {
+
+            AndroidView(
+                factory = { ctx ->
+                    MapView(ctx).apply {
+                        setTileSource(TileSourceFactory.MAPNIK)
+                        setMultiTouchControls(true)
+                        controller.setZoom(15.0)
+                        mapView = this
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
 
             if (room?.createdBy == currentUserId) {
                 Column(

@@ -144,25 +144,19 @@ class RoomViewModel(
                     RegattaPoint("3", buoy3LatLng.first, buoy3LatLng.second)
                 )
             } else {
-                val sideLength = buoyDist / 2.0
-                val angleTo2 = (wind - 60 + 360) % 360
-                val buoy2 = computeOffset(buoy1LatLng.first, buoy1LatLng.second, sideLength, angleTo2.toDouble())
-                val angleTo3 = (wind + 60) % 360
-                val buoy3 = computeOffset(buoy1LatLng.first, buoy1LatLng.second, sideLength, angleTo3.toDouble())
-                val midLat = (buoy2.first + buoy3.first) / 2
-                val midLng = (buoy2.second + buoy3.second) / 2
-                val vectorTo1Lat = buoy1LatLng.first - midLat
-                val vectorTo1Lng = buoy1LatLng.second - midLng
-                val buoy4Lat = midLat - vectorTo1Lat
-                val buoy4Lng = midLng - vectorTo1Lng
+                val sideLength = buoyDist / 1.4
+
+                val buoy2LatLng = computeOffset(buoy1LatLng.first, buoy1LatLng.second, sideLength, ((wind - 105 + 360) % 360).toDouble())
+                val buoy4LatLng = computeOffset(buoy1LatLng.first, buoy1LatLng.second, buoyDist * 1.5, ((wind + 180) % 360).toDouble())
+                val buoy3LatLng = computeOffset(buoy4LatLng.first, buoy4LatLng.second, sideLength, ((wind - 75 + 360) % 360).toDouble())
 
                 listOf(
                     RegattaPoint("RC", rcLat, rcLng),
                     RegattaPoint("Start", startBuoyLat, startBuoyLng),
                     RegattaPoint("1", buoy1LatLng.first, buoy1LatLng.second),
-                    RegattaPoint("2", buoy2.first, buoy2.second),
-                    RegattaPoint("3", buoy3.first, buoy3.second),
-                    RegattaPoint("4", buoy4Lat, buoy4Lng)
+                    RegattaPoint("2", buoy2LatLng.first, buoy2LatLng.second),
+                    RegattaPoint("3", buoy3LatLng.first, buoy3LatLng.second),
+                    RegattaPoint("4", buoy4LatLng.first, buoy4LatLng.second)
                 )
             }
 
